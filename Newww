@@ -1,0 +1,107 @@
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
+
+public class TcpServer
+{
+    private TcpListener _listener;
+
+    public TcpServer(int port)
+    {
+        _listener = new TcpListener(IPAddress.Any, port);
+    }
+
+    public async Task StartAsync()
+    {
+        _listener.Start();
+        Console.WriteLine("TCP Server started...");
+
+        while (true)
+        {
+            var client = await _listener.AcceptTcpClientAsync();
+            Console.WriteLine("Client connected.");
+            _ = HandleClientAsync(client); // Handle client in a separate task
+        }
+    }
+
+    private async Task HandleClientAsync(TcpClient client)
+    {
+        var buffer = new byte[1024];
+        var stream = client.GetStream();
+
+        try
+        {
+            while (true)
+            {
+                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                if (bytesRead == 0) break;
+
+                var message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                Console.WriteLine($"Received from TCP client: {message}");
+                
+                // Echo the message back
+                await stream.WriteAsync(buffer, 0, bytesRead);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            client.Close();
+            Console.WriteLine("Client disconnected.");
+        }
+    }
+}
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
+
+public class UdpServer
+{
+    private UdpClient _udpClient;
+    private IPEndPoint _endPoint;
+
+    public UdpServer(int port)
+    {
+        _udpClient = new UdpClient(port);
+        _endPoint = new IPEndPoint(IPAddress.Any, port);
+    }
+
+    public async Task StartAsync()
+    {
+        Console.WriteLine("UDP Server started...");
+
+        while (true)
+        {
+            var result = await _udpClient.ReceiveAsync();
+            var message = Encoding.UTF8.GetString(result.Buffer);
+            Console.WriteLine($"Received from UDP client: {message}");
+
+            // Echo the message back
+            var responseBytes = Encoding.UTF8.GetBytes($"Echo: {message}");
+            await _udpClient.SendAsync(responseBytes, responseBytes.Length, result.RemoteEndPoint);
+        }
+    }
+}
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        var tcpServer = new TcpServer(5000); // پورت 5000 برای TCP
+        var udpServer = new UdpServer(6000); // پورت 6000 برای UDP
+
+        var tcpTask = tcpServer.StartAsync();
+        var udpTask = udpServer.StartAsync();
+
+        await Task.WhenAll(tcpTask, udpTask);
+    }
+}
